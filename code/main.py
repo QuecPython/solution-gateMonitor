@@ -12,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from usr.logging import getLogger
+from usr.gateMonitor_controller import Controller
+from usr.gateMonitor_devicecheck import DeviceCheck
+from usr.gateMonitor import GateMonitor
+from usr.modules.logging import getLogger
+from usr.settings import PROJECT_NAME, PROJECT_VERSION, DEVICE_FIRMWARE_NAME, DEVICE_FIRMWARE_VERSION, settings
 
 log = getLogger(__name__)
 
 def main():
-    pass
+    log.info("PROJECT_NAME: %s, PROJECT_VERSION: %s" % (PROJECT_NAME, PROJECT_VERSION))
+    log.info("DEVICE_FIRMWARE_NAME: %s, DEVICE_FIRMWARE_VERSION: %s" % (DEVICE_FIRMWARE_NAME, DEVICE_FIRMWARE_VERSION))
+
+    current_settings = settings.get()
 
 
 if __name__ == '__main__':
