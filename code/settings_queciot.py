@@ -16,34 +16,11 @@
 class QuecCloudConfig(object):
     """
     object model data format:
-
-    object_model = {
-        "event": {
-            "event_key": {
-                "id": 1,
-                "perm": "",
-                "struct_info": {
-                    "struct_key": {
-                        "id": 1
-                    }
-                }
-            }
-        },
-        "property": {
-            "property_key": {
-                "id": 1,
-                "perm": "",
-                "struct_info": {
-                    "struct_key": {
-                        "id": 1
-                    }
-                }
-            }
-        }
-    }
     """
     PK = "p111SP"
     PS = "bHBoM01JL1htTEsw"
+    DK = ""
+    DS = ""
     LIFETIME =  65500
     MODE = 0,  # 0 LWM2M, 1 MQTT
     SERVER = "http://iot-south.quectel.com:5683"

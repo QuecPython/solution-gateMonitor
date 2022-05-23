@@ -36,16 +36,7 @@ class DeviceCheck(object):
         current_settings = settings.get()
         checknet = checkNet.CheckNetwork(PROJECT_NAME, PROJECT_VERSION)
         timeout = current_settings.get("sys", {}).get("checknet_timeout", 60)
-        self.__controller.led_flicker_on(600, 400, timeout * 1000, 0)
         stagecode, subcode = checknet.wait_network_connected(timeout)
         log.debug("DeviceCheck.net stagecode: %s, subcode: %s" % (stagecode, subcode))
-        if stagecode == 3 and subcode == 1:
-            self.__controller.led_flicker_off(0)
-            self.__controller.buzzer_flicker_on(1500, 100, 1)
-        else:
-            self.__controller.led_on()
-            self.__controller.buzzer_flicker_on(600, 400, 2)
-        return stagecode, subcode
+        return True if (stagecode == 3 and subcode == 1) else False
 
-    def device_power_on(self):
-        self.__controller.buzzer_flicker_on(700, 300, 1)

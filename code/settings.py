@@ -23,6 +23,7 @@ from usr.modules.common import Singleton
 from usr.modules.common import option_lock
 from usr.settings_sys import SYSConfig
 from usr.settings_queccloud import QuecCloudConfig
+from usr.settings_device import DeviceConfig
 
 
 PROJECT_NAME = "QuecPython-GateMonitor"
@@ -49,11 +50,16 @@ class Settings(Singleton):
 
             # CloudConfig init
             if self.current_settings["sys"]["cloud"] == SYSConfig._cloud.quecIot:
-                self.current_settings["cloud"] = {k: v for k, v in QuecCloudConfig.__dict__.items() if not k.startswith("_")}
-
-            # LocConfig init
-
-            # UserConfig init
+                self.current_settings["cloud"] = {k: v for k, v in QuecCloudConfig.__dict__.items() if \
+                                                  not k.startswith("_")}
+            # DeviceConfig init
+            if self.current_settings["sys"]["device_cfg"]:
+                self.current_settings["device_cfg"] = {k: v for k, v in DeviceConfig.__dict__.items() if \
+                                                     not k.startswith("_")}
+            # UsrConfig init
+            if self.current_settings["sys"]["usr_cfg"]:
+                self.current_settings["usr_cfg"] = {k: v for k, v in DeviceConfig.__dict__.items() if \
+                                                       not k.startswith("_")}
             return True
         except:
             return False
@@ -66,52 +72,22 @@ class Settings(Singleton):
         return False
 
     def __set_config(self, opt, val):
-        if opt in self.current_settings["user_cfg"]:
-            if opt == "phone_num":
-                if not isinstance(val, str):
-                    return False
-                pattern = ure.compile(r"^(?:(?:\+)86)?1[3-9]\d\d\d\d\d\d\d\d\d$")
-                if pattern.search(val):
-                    self.current_settings["user_cfg"][opt] = val
-                    return True
-                return False
-            elif opt in ("work_cycle_period", "over_speed_threshold"):
+        if opt in self.current_settings["device_cfg"]:
+            if opt == "doorState":
                 if not isinstance(val, int):
                     return False
-                if val < 1:
-                    return False
-                self.current_settings["user_cfg"][opt] = val
+                self.current_settings["device_cfg"][opt] = val
                 return True
-            elif opt in ("low_power_alert_threshold", "low_power_shutdown_threshold"):
+            if opt == "lowPowerAlarm":
                 if not isinstance(val, int):
                     return False
-                if val < 0 or val > 100:
-                    return False
-                self.current_settings["user_cfg"][opt] = val
-                return True
-            elif opt in ("sw_ota", "sw_ota_auto_upgrade", "sw_voice_listen", "sw_voice_record",
-                         "sw_fault_alert", "sw_low_power_alert", "sw_over_speed_alert",
-                         "sw_sim_abnormal_alert", "sw_disassemble_alert", "sw_drive_behavior_alert"):
-                if not isinstance(val, bool):
-                    return False
-                self.current_settings["user_cfg"][opt] = val
-                return True
-            elif opt == "ota_status":
-                if not isinstance(val, dict):
-                    return False
-                self.current_settings["user_cfg"][opt] = val
-                return True
-            elif opt in ("user_ota_action", "drive_behavior_code"):
-                if not isinstance(val, int):
-                    return False
-                self.current_settings["sys"][opt] = val
+                self.current_settings["device_cfg"][opt] = val
                 return True
         elif opt == "cloud":
             if not isinstance(val, dict):
                 return False
             self.current_settings[opt] = val
             return True
-
         return False
 
     def __save_config(self):

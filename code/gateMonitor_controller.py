@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import quecIot
+import net
+import sys_bus
 from misc import Power
 
 from usr.modules.led import LED
@@ -37,6 +40,8 @@ class Controller(Singleton):
         self.__battery = None
         self.__settings = None
         self.__low_energy = None
+        self.__lowPowerFlag = True
+        self.__data_staging = list()
 
     def add_module(self, module, led_type=None):
         if isinstance(module, LED):
@@ -50,7 +55,7 @@ class Controller(Singleton):
             self.__buzz = module
             return True
         if isinstance(module, Battery):
-            self.__buzz = module
+            self.__battery = module
             return True
         if isinstance(module, RemotePublish):
             self.__remote_pub = module
@@ -141,6 +146,38 @@ class Controller(Singleton):
         if not self.__buzz:
             raise TypeError("self.__buzz is not registered.")
         return self.__buzz.stop_flicker()
+
+    def get_device_voltage(self):
+        total = self.__battery.get_voltage()
+        vbatt = int((total - 1100) / 400 * 100)
+        if vbatt < 0:
+            vbatt = 1
+        if vbatt < 10 and self.__lowPowerFlag:
+            self.__lowPowerFlag = False
+            sys_bus.publish(1004, {"vbatt": vbatt})
+        return vbatt
+
+    def get_net_csq(self):
+        return net.csqQueryPoll()
+
+    def get_cloud_sta(self):
+        return True if quecIot.getWorkState() == 8 and quecIot.getConnmode() == 1 else False
+
+    def append_repord_data(self, data):
+        self.__data_staging.extend(data)
+
+    def rmove_repord_data(self):
+        self.__data_staging = []
+
+    def check_report_data(self):
+        if self.__data_staging:
+            for v in self.__data_staging:
+                self.remote_post_data(v)
+            return True
+        else:
+            return False
+
+
 
 
 

@@ -13,23 +13,9 @@
 # limitations under the License.
 
 
-class SYSConfig(object):
-
-    class _cloud(object):
-        none = 0x0
-        quecIot = 0x1
-
-    debug = True
-
-    log_level = "DEBUG"
-
-    cloud = _cloud.quecIot
-
-    checknet_timeout = 60
-
-    base_cfg = {
-        "LocConfig": True,
-    }
-
-    device_cfg = True
-    usr_cfg = True
+class UsrConfig(object):
+    """
+    usr config:
+    """
+    # rtc period, default 12h, 3600 * 12 = 43200
+    rtc_wakeup_period = 43200

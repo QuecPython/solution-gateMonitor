@@ -13,23 +13,11 @@
 # limitations under the License.
 
 
-class SYSConfig(object):
-
-    class _cloud(object):
-        none = 0x0
-        quecIot = 0x1
-
-    debug = True
-
-    log_level = "DEBUG"
-
-    cloud = _cloud.quecIot
-
-    checknet_timeout = 60
-
-    base_cfg = {
-        "LocConfig": True,
-    }
-
-    device_cfg = True
-    usr_cfg = True
+class DeviceConfig(object):
+    """
+    device config:
+    """
+    # door state, 0: open door ,1: close door
+    doorState = 0
+    # low power alarm flag, 1: alarm , 0: no alarm
+    lowPowerAlarm = 0
