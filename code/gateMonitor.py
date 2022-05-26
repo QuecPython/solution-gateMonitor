@@ -23,7 +23,7 @@ from machine import ExtInt
 
 from usr.modules.history import History
 from usr.modules.battery import Battery
-from usr.modules.buzzer import Buzzer, LED
+from usr.modules.peripherals import Buzzer, LED
 from usr.modules.remote import RemotePublish
 from usr.modules.mpower import LowEnergyManage
 from usr.modules.quecthing import QuecThing, QuecObjectModel
@@ -292,11 +292,11 @@ if __name__ == '__main__':
         # Cloud start
         cloud_status = cloud.init()
         gate_monitor_obj.powerOnManage(cloud_status)
-    # rtc_wakeup_period = current_settings["usr_cfg"].get("rtc_wakeup_period")
-    # low_energy_obj.set_period(rtc_wakeup_period)
-    # low_energy_obj.set_low_energy_method("PSM")
-    # low_energy_obj.addObserver(collector)
-    # # Low energy init
-    # controller.low_energy_init()
-    # # Low energy start
-    # controller.low_energy_start()
+    rtc_wakeup_period = current_settings["usr_cfg"].get("rtc_wakeup_period")
+    low_energy_obj.set_period(rtc_wakeup_period)
+    low_energy_obj.set_low_energy_method("PSM")
+    low_energy_obj.addObserver(collector)
+    # Low energy init
+    controller.low_energy_init()
+    # Low energy start
+    controller.low_energy_start()

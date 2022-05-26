@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from re import U
 import quecIot
 import net
 import checkNet
 import sys_bus
 from misc import Power
 
-from usr.modules.buzzer import Buzzer, LED
+from usr.modules.peripherals import Buzzer, LED
 from log import getLogger
 from usr.modules.mpower import LowEnergyManage
 from usr.modules.remote import RemotePublish
