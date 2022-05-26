@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from re import U
 import quecIot
 import net
+import checkNet
 import sys_bus
 from misc import Power
 
-from usr.modules.led import LED
-from usr.modules.buzzer import Buzzer
-from usr.modules.logging import getLogger
+from usr.modules.buzzer import Buzzer, LED
+from log import getLogger
 from usr.modules.mpower import LowEnergyManage
 from usr.modules.remote import RemotePublish
 from usr.modules.common import Singleton
 from usr.modules.battery import Battery
-from usr.settings import Settings
+from usr.settings import Settings, PROJECT_NAME, PROJECT_VERSION, settings
 
 log = getLogger(__name__)
 
@@ -88,7 +89,7 @@ class Controller(Singleton):
     def remote_post_data(self, data):
         if not self.__remote_pub:
             raise TypeError("self.__remote_pub is not registered.")
-        log.debug("remote_post_data data: %s" % str(data))
+        print("DEBUG:remote_post_data data: %s" % str(data))
         return self.__remote_pub.post_data(data)
 
     def remote_ota_check(self):
@@ -100,6 +101,16 @@ class Controller(Singleton):
         if not self.__remote_pub:
             raise TypeError("self.__remote_pub is not registered.")
         return self.__remote_pub.cloud_ota_action(action, module)
+
+    def low_energy_init(self):
+        if not self.__low_energy:
+            raise TypeError("self.__low_energy is not registered.")
+        return self.__low_energy.low_energy_init()
+
+    def low_energy_start(self):
+        if not self.__low_energy:
+            raise TypeError("self.__low_energy is not registered.")
+        return self.__low_energy.start()
 
     def led_on(self, mode=1):
         if not self.__led:
@@ -120,17 +131,13 @@ class Controller(Singleton):
         return self.__led.off()
 
     def led_flicker_on(self, on_period, off_period, count, mode):
-        if not self.__led:
-            raise TypeError("self.__led is not registered.")
         if mode: # red
             self.__led = self.__red_led
         else:
             self.__led = self.__blue_led
-        return self.__led.start_flicker(on_period, off_period, count, mode)
+        return self.__led.start_flicker(on_period, off_period, count)
 
     def led_flicker_off(self, mode):
-        if not self.__led:
-            raise TypeError("self.__led is not registered.")
         if mode: # red
             self.__led = self.__red_led
         else:
@@ -177,7 +184,60 @@ class Controller(Singleton):
         else:
             return False
 
+class DeviceCheck(object):
 
+    def __init__(self):
+        self.__controller = None
 
+    def add_module(self, module):
+        """add modules for collecting data"""
+        if isinstance(module, Controller):
+            self.__controller = module
+            return True
 
+    def wait_net_state(self):
+        current_settings = settings.get()
+        checknet = checkNet.CheckNetwork(PROJECT_NAME, PROJECT_VERSION)
+        timeout = current_settings.get("sys", {}).get("checknet_timeout", 60)
+        stagecode, subcode = checknet.wait_network_connected(timeout)
+        log.debug("DeviceCheck.net stagecode: %s, subcode: %s" % (stagecode, subcode))
+        return True if (stagecode == 3 and subcode == 1) else False
 
+class Collector(Singleton):
+    """Device data and commands collector"""
+    def __init__(self):
+        self.__controller = None
+        self.__devicecheck = None
+        self.__bootReason = Power.powerOnReason()
+
+    def add_module(self, module):
+        """add modules for collecting data"""
+        if isinstance(module, Controller):
+            self.__controller = module
+            return True
+        elif isinstance(module, DeviceCheck):
+            self.__devicecheck = module
+            return True
+
+    def device_status_get(self):
+        """Get device status from DeviceCheck module"""
+        if not self.__devicecheck:
+            raise TypeError("self.__devicecheck is not registered.")
+        if not self.__controller:
+            raise TypeError("self.__controller is not registered.")
+
+        self.device_power_on()
+        net_status = self.__devicecheck.wait_net_state()
+        if net_status:
+            self.__controller.led_flicker_off(0)
+            self.__controller.buzzer_flicker_on(1000, 100, 1)
+        else:
+            self.__controller.led_on(1)
+            self.__controller.buzzer_flicker_on(600, 400, 2)
+        return net_status
+
+    def device_power_on(self):
+        if (self.__bootReason != 4) and (self.__bootReason != 8):
+            res = self.__controller.led_flicker_on(500, 500, 60, 0)
+            self.__controller.buzzer_flicker_on(700, 300, 1)
+            

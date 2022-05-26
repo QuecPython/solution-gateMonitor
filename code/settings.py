@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import uos
-import ure
 import ql_fs
 import ujson
 import modem
@@ -21,9 +20,6 @@ import _thread
 
 from usr.modules.common import Singleton
 from usr.modules.common import option_lock
-from usr.settings_sys import SYSConfig
-from usr.settings_queccloud import QuecCloudConfig
-from usr.settings_device import DeviceConfig
 
 
 PROJECT_NAME = "QuecPython-GateMonitor"
@@ -36,6 +32,55 @@ DEVICE_FIRMWARE_VERSION = modem.getDevFwVersion()
 
 _settings_lock = _thread.allocate_lock()
 
+
+class DeviceConfig(object):
+    """
+    device config:
+    """
+    # door state, 0: open door ,1: close door
+    doorState = 0
+    # low power alarm flag, 1: alarm , 0: no alarm
+    lowPowerAlarm = 0
+
+class QuecCloudConfig(object):
+    """
+    object model data format:
+    """
+    PK = "p111SP"
+    PS = "bHBoM01JL1htTEsw"
+    DK = ""
+    DS = ""
+    LIFETIME = 65500
+    MODE = 0 # 0 LWM2M, 1 MQTT
+    SERVER = "http://iot-south.quectel.com:5683"
+
+class SYSConfig(object):
+
+    class _cloud(object):
+        none = 0x0
+        quecIot = 0x1
+
+    debug = True
+
+    log_level = "DEBUG"
+
+    cloud = _cloud.quecIot
+
+    checknet_timeout = 60
+
+    base_cfg = {
+        "LocConfig": True,
+    }
+
+    device_cfg = True
+    usr_cfg = True
+
+class UsrConfig(object):
+    """
+    usr config:
+    """
+    # rtc period, default 12h, 3600 * 12 = 43200
+    rtc_wakeup_period = 43200
 
 class Settings(Singleton):
 
@@ -58,8 +103,9 @@ class Settings(Singleton):
                                                      not k.startswith("_")}
             # UsrConfig init
             if self.current_settings["sys"]["usr_cfg"]:
-                self.current_settings["usr_cfg"] = {k: v for k, v in DeviceConfig.__dict__.items() if \
+                self.current_settings["usr_cfg"] = {k: v for k, v in UsrConfig.__dict__.items() if \
                                                        not k.startswith("_")}
+            print(self.current_settings)
             return True
         except:
             return False

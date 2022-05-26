@@ -16,14 +16,22 @@ import sys_bus
 import _thread
 import utime
 from misc import Power
+from misc import ADC
 from queue import Queue
 from machine import Pin
 from machine import ExtInt
 
+from usr.modules.history import History
+from usr.modules.battery import Battery
+from usr.modules.buzzer import Buzzer, LED
+from usr.modules.remote import RemotePublish
+from usr.modules.mpower import LowEnergyManage
+from usr.modules.quecthing import QuecThing, QuecObjectModel
 from usr.modules.common import Singleton
-from usr.modules.logging import getLogger
-from usr.gateMonitor_controller import Controller
-from usr.settings import settings
+from log import getLogger
+from usr.gateMonitor_controller import Controller, Collector, DeviceCheck
+from usr.settings import PROJECT_NAME, PROJECT_VERSION, DEVICE_FIRMWARE_NAME,\
+    DEVICE_FIRMWARE_VERSION, settings, SYSConfig
 
 log = getLogger(__name__)
 
@@ -51,11 +59,11 @@ class GateMonitor(Singleton):
         door_sta = params.get("door_status")
         mode = params.get("mode")
         if door_sta: # door sta open
-            self.__controller.led_flicker(1000, 300, 5, 1)
-            self.__controller.buzzer_flicker(1000, 300, 5)
+            self.__controller.led_flicker_on(700, 300, 5, 1)
+            self.__controller.buzzer_flicker_on(700, 300, 5)
         else:
-            self.__controller.led_flicker(1000, 300, 1, 0)
-            self.__controller.buzzer_flicker(1000, 300, 1)
+            self.__controller.led_flicker_on(700, 300, 1, 1)
+            self.__controller.buzzer_flicker_on(700, 300, 1)
         # 根据物模型定义的告警事件属性值进行组包
         csq = self.__controller.get_net_csq()
         voltage = self.__controller.get_device_voltage()
@@ -86,8 +94,8 @@ class GateMonitor(Singleton):
         '''
         按键 手动告警
         '''
-        self.__controller.led_flicker(3000, 300, 1, 1)
-        self.__controller.buzzer_flicker(600, 400, 3)
+        self.__controller.led_flicker_on(2000, 10, 1, 1)
+        self.__controller.buzzer_flicker_on(600, 400, 2)
         # 根据物模型定义的告警事件属性值进行组包
         csq = self.__controller.get_net_csq()
         voltage = self.__controller.get_device_voltage()
@@ -110,6 +118,7 @@ class GateMonitor(Singleton):
         return send_sta
 
     def deviceWakeUp(self):
+        print("DEBUG: deviceWakeUp bootReason = {}".format(self.__bootReason))
         if self.__bootReason == 8:
             if self.__extint.get_key_gpio_level():
                 self.__extint.eventQueue.put([7, 5])
@@ -132,13 +141,12 @@ class GateMonitor(Singleton):
             1003: self.manualAlarm,
             1004: self.lowPowerAlarm,
         }
-        for k, v in self.__msgCode.items():
+        for k, v in self.__taskCode.items():
             sys_bus.subscribe(k, v)
 
 
 class InterruptEvent(object):
-    def __init__(self, config):
-        self.__config = config
+    def __init__(self):
         self.eventQueue = Queue(20)
         self.__magnet_ext = ExtInt(ExtInt.GPIO6, ExtInt.IRQ_RISING_FALLING, ExtInt.PULL_DISABLE, self.__magnetCallback)
         self.__keys_ext = ExtInt(ExtInt.GPIO7, ExtInt.IRQ_FALLING, ExtInt.PULL_DISABLE, self.__keyCallback)
@@ -146,22 +154,22 @@ class InterruptEvent(object):
         self.__keys_ext.enable()
         self.__magnet_gpio = Pin(Pin.GPIO6, Pin.IN, Pin.PULL_DISABLE, 1)
         self.__key_gpio = Pin(Pin.GPIO7, Pin.IN, Pin.PULL_DISABLE, 1)
+        self.__keys_flag = True
+        self.__magnet_flag = True
 
     def __magnetCallback(self, args):
-        now_level = args[1]
         utime.sleep_ms(25)
-        if (now_level == self.__magnet_gpio.read()) and self.__magnet_flag:
+        if self.__magnet_flag:
             self.__magnet_flag = False
-            self.eventQueue.put(args)
+            self.eventQueue.put([6, self.__magnet_gpio.read()])
         else:
             pass
 
     def __keyCallback(self, args):
-        now_level = args[1]
         utime.sleep_ms(25)
-        if (now_level == self.__key_gpio.read()) and self.__keys_flag:
+        if self.__keys_flag:
             self.__keys_flag = False
-            self.eventQueue.put(args)
+            self.eventQueue.put([7, self.__key_gpio.read()])
         else:
             pass
 
@@ -179,8 +187,11 @@ class InterruptEvent(object):
                     sys_bus.publish(1003, {"cmd": 1003})
                     self.__keys_flag = True
                 else:
-                    level = self.__magnet_gpio.read()
-                    doorSta = settings.get("device_cfg").get("door_status")
+                    level = msg[1]
+                    try:
+                        doorSta = settings.get().get("device_cfg").get("doorState")
+                    except:
+                        doorSta = 0
                     if doorSta and not level: # 上次记录门磁状态为开 本次唤醒读取状态为关 判断为关门动作，执行关门恢复告警
                         doorSta = False
                         action_mode = 0
@@ -198,14 +209,94 @@ class InterruptEvent(object):
                         action_mode = 0
                     sys_bus.publish(1002, {"door_status": doorSta, "mode": action_mode})
                     self.__magnet_flag = True
-                    settings.set("door_state", 1 if doorSta else 0)
+                    settings.set("doorState", 1 if doorSta else 0)
                     settings.save()
             except Exception as e:
+                print("218 error")
                 self.__magnet_flag = True
                 self.__keys_flag = True
 
+def main():
+    pass
 
+if __name__ == '__main__':
+    log.info("PROJECT_NAME: %s, PROJECT_VERSION: %s" % (PROJECT_NAME, PROJECT_VERSION))
+    log.info("DEVICE_FIRMWARE_NAME: %s, DEVICE_FIRMWARE_VERSION: %s" % (DEVICE_FIRMWARE_NAME, DEVICE_FIRMWARE_VERSION))
 
+    current_settings = settings.get()
 
+    history_obj = History()
+    battery_obj = Battery(adc_args=(ADC.ADC0, 20, 1.1))
+    red_led_obj = LED(Pin.GPIO4)
+    blue_led_obj = LED(Pin.GPIO3)
+    buzzer_obj = Buzzer(Pin.GPIO2)
+    low_energy_obj = LowEnergyManage()
+    devicecheck_obj = DeviceCheck()
+    extint_obj = InterruptEvent()
+    gate_monitor_obj = GateMonitor(current_settings)
+    gate_monitor_obj.makeFunctions()
 
+    cloud_init_params = current_settings["cloud"]
+    if current_settings["sys"]["cloud"] & SYSConfig._cloud.quecIot:
+        cloud = QuecThing(
+            cloud_init_params["PK"],
+            cloud_init_params["PS"],
+            cloud_init_params["DK"],
+            cloud_init_params["DS"],
+            cloud_init_params["SERVER"],
+            life_time = cloud_init_params["LIFETIME"],
+            mcu_name=PROJECT_NAME,
+            mcu_version=PROJECT_VERSION,
+            mode = cloud_init_params["MODE"],
+        )
+        # Cloud object model init
+        cloud_om = QuecObjectModel()
+        cloud.set_object_model(cloud_om)
 
+    # RemotePublish initialization
+    remote_pub = RemotePublish()
+    # Add History to RemotePublish for recording failure data
+    remote_pub.addObserver(history_obj)
+    # Add Cloud to RemotePublish for publishing data to cloud
+    remote_pub.add_cloud(cloud)
+
+    # Controller initialization
+    controller = Controller()
+    # Add RemotePublish to Controller for publishing data to cloud
+    controller.add_module(remote_pub)
+    # Add Settings to Controller for changing settings.
+    controller.add_module(settings)
+    # Add LowEnergyManage to Controller for controlling low energy.
+    controller.add_module(low_energy_obj)
+    # Add led to Controller
+    controller.add_module(red_led_obj, led_type="red")
+    controller.add_module(blue_led_obj, led_type="blue")
+    # Add Buzzer to Controller
+    controller.add_module(buzzer_obj)
+    # Add Battery to Controller
+    controller.add_module(battery_obj)
+
+    # Collector initialization
+    collector = Collector()
+    collector.add_module(devicecheck_obj)
+    collector.add_module(controller)
+
+    gate_monitor_obj.add_module(extint_obj)
+    gate_monitor_obj.add_module(controller)
+
+    extint_obj.runTask()
+    gate_monitor_obj.deviceWakeUp()
+    net_status = collector.device_status_get()
+    if net_status:
+        # Business start
+        # Cloud start
+        cloud_status = cloud.init()
+        gate_monitor_obj.powerOnManage(cloud_status)
+    # rtc_wakeup_period = current_settings["usr_cfg"].get("rtc_wakeup_period")
+    # low_energy_obj.set_period(rtc_wakeup_period)
+    # low_energy_obj.set_low_energy_method("PSM")
+    # low_energy_obj.addObserver(collector)
+    # # Low energy init
+    # controller.low_energy_init()
+    # # Low energy start
+    # controller.low_energy_start()
