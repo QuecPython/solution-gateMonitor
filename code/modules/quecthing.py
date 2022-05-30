@@ -1,6 +1,3 @@
-import uos
-import uzlib
-import ql_fs
 import ujson
 import utime
 import osTimer
@@ -9,7 +6,6 @@ try:
     import uhashlib
 except:
     uhashlib = None
-from misc import Power
 from queue import Queue
 from log import getLogger
 from usr.modules.common import CloudObservable, CloudObjectModel

@@ -68,9 +68,6 @@ class LowEnergyManage(Observable):
 
     def __timer_init(self):
         """Use RTC or osTimer for timer"""
-        print("71", RTC)
-        from machine import RTC
-        print("73", RTC)
         if RTC is not None:
             self.__timer = RTC()
         else:
@@ -86,12 +83,10 @@ class LowEnergyManage(Observable):
 
     def __rtc_start(self):
         """Start low energy sleep by RTC"""
-        print("74", self.__timer)
         self.__rtc_enable(0)
         atime = utime.localtime(utime.mktime(utime.localtime()) + self.__period)
         alarm_time = [atime[0], atime[1], atime[2], atime[6], atime[3], atime[4], atime[5], 0]
         self.__timer.register_callback(self.__timer_callback)
-        print("95", self.__timer)
         if self.__timer.set_alarm(alarm_time) == 0:
             return self.__rtc_enable(1)
         return False
@@ -155,12 +150,8 @@ class LowEnergyManage(Observable):
         elif self.__low_energy_method in ("NULL", "POWERDOWN"):
             self.__thread_id = _thread.start_new_thread(self.__low_energy_work, (False,))
 
-        print("123")
         self.__timer_init()
         return True
-        # except:
-        #     print("162")
-        #     return False
 
     def start(self):
         """Start low energy sleep"""

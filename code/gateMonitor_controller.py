@@ -114,30 +114,30 @@ class Controller(Singleton):
     def led_on(self, mode=1):
         if not self.__led:
             raise TypeError("self.__led is not registered.")
-        if mode: # red
+        if mode:  # red
             self.__led = self.__red_led
         else:
             self.__led = self.__blue_led
         return self.__led.on()
 
-    def led_off(self,mode=1):
+    def led_off(self, mode=1):
         if not self.__led:
             raise TypeError("self.__led is not registered.")
-        if mode: # red
+        if mode:  # red
             self.__led = self.__red_led
         else:
             self.__led = self.__blue_led
         return self.__led.off()
 
     def led_flicker_on(self, on_period, off_period, count, mode):
-        if mode: # red
+        if mode:  # red
             self.__led = self.__red_led
         else:
             self.__led = self.__blue_led
         return self.__led.start_flicker(on_period, off_period, count)
 
     def led_flicker_off(self, mode):
-        if mode: # red
+        if mode:  # red
             self.__led = self.__red_led
         else:
             self.__led = self.__blue_led
@@ -183,6 +183,7 @@ class Controller(Singleton):
         else:
             return False
 
+
 class DeviceCheck(object):
 
     def __init__(self):
@@ -202,8 +203,10 @@ class DeviceCheck(object):
         log.debug("DeviceCheck.net stagecode: %s, subcode: %s" % (stagecode, subcode))
         return True if (stagecode == 3 and subcode == 1) else False
 
+
 class Collector(Singleton):
     """Device data and commands collector"""
+
     def __init__(self):
         self.__controller = None
         self.__devicecheck = None
@@ -239,4 +242,3 @@ class Collector(Singleton):
         if (self.__bootReason != 4) and (self.__bootReason != 8):
             res = self.__controller.led_flicker_on(500, 500, 60, 0)
             self.__controller.buzzer_flicker_on(700, 300, 1)
-            
