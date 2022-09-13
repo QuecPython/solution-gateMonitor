@@ -46,6 +46,7 @@ class Buzzer(object):
     def start_flicker(self, on_period, off_period, count):
         """Start buzz period"""
         if self.thread_id:
+            log.info("start_flicker is thread_id Y")
             return False
         self.thread_id = _thread.start_new_thread(self.__buzz_timer_cb, (count, on_period, off_period))
         return True

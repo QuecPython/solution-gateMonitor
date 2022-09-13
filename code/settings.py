@@ -17,19 +17,13 @@ import ql_fs
 import ujson
 import modem
 import _thread
-
 from usr.modules.common import Singleton
 from usr.modules.common import option_lock
 
-
 PROJECT_NAME = "QuecPython-GateMonitor"
-
 PROJECT_VERSION = "1.0.0"
-
 DEVICE_FIRMWARE_NAME = uos.uname()[0].split("=")[1]
-
 DEVICE_FIRMWARE_VERSION = modem.getDevFwVersion()
-
 _settings_lock = _thread.allocate_lock()
 
 
@@ -92,7 +86,6 @@ class Settings(Singleton):
     def __init_config(self):
         try:
             self.current_settings["sys"] = {k: v for k, v in SYSConfig.__dict__.items() if not k.startswith("_")}
-
             # CloudConfig init
             if self.current_settings["sys"]["cloud"] == SYSConfig._cloud.quecIot:
                 self.current_settings["cloud"] = {k: v for k, v in QuecCloudConfig.__dict__.items() if \
@@ -183,6 +176,5 @@ class Settings(Singleton):
             if self.__init_config():
                 return self.__save_config()
         return False
-
 
 settings = Settings()

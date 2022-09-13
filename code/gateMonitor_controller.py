@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import quecIot
 import net
 import checkNet
 import sys_bus
+import pm
 from misc import Power
-
 from usr.modules.peripherals import Buzzer, LED
 from log import getLogger
 from usr.modules.mpower import LowEnergyManage
@@ -88,7 +87,7 @@ class Controller(Singleton):
     def remote_post_data(self, data):
         if not self.__remote_pub:
             raise TypeError("self.__remote_pub is not registered.")
-        print("DEBUG:remote_post_data data: %s" % str(data))
+        log.info("DEBUG:remote_post_data data: %s" % str(data))
         return self.__remote_pub.post_data(data)
 
     def remote_ota_check(self):
@@ -112,7 +111,7 @@ class Controller(Singleton):
         return self.__low_energy.start()
 
     def led_on(self, mode=1):
-        if not self.__led:
+        if not self.__red_led and self.__blue_led:
             raise TypeError("self.__led is not registered.")
         if mode:  # red
             self.__led = self.__red_led
@@ -121,7 +120,7 @@ class Controller(Singleton):
         return self.__led.on()
 
     def led_off(self, mode=1):
-        if not self.__led:
+        if not self.__red_led and self.__blue_led:
             raise TypeError("self.__led is not registered.")
         if mode:  # red
             self.__led = self.__red_led
@@ -154,20 +153,19 @@ class Controller(Singleton):
         return self.__buzz.stop_flicker()
 
     def get_device_voltage(self):
-        total = self.__battery.get_voltage()
-        vbatt = int((total - 1100) / 400 * 100)
-        if vbatt < 0:
-            vbatt = 1
-        if vbatt < 10 and self.__lowPowerFlag:
+        device_voltage_num = int((self.__battery.get_voltage() - 1100) / 400 * 100)
+        if device_voltage_num < 0:
+            device_voltage_num = 1
+        if device_voltage_num < 10 and self.__lowPowerFlag:
             self.__lowPowerFlag = False
-            sys_bus.publish(1004, {"vbatt": vbatt})
-        return vbatt
+            sys_bus.publish(1004, {"vbatt": device_voltage_num})
+        return device_voltage_num
 
     def get_net_csq(self):
         return net.csqQueryPoll()
 
     def get_cloud_sta(self):
-        return True if quecIot.getWorkState() == 8 and quecIot.getConnmode() == 1 else False
+        return self.__remote_pub.conn_state()
 
     def append_repord_data(self, data):
         self.__data_staging.extend(data)
@@ -176,6 +174,7 @@ class Controller(Singleton):
         self.__data_staging = []
 
     def check_report_data(self):
+        log.info("report_data is %s " % self.__data_staging)
         if self.__data_staging:
             for v in self.__data_staging:
                 self.remote_post_data(v)
@@ -200,7 +199,7 @@ class DeviceCheck(object):
         checknet = checkNet.CheckNetwork(PROJECT_NAME, PROJECT_VERSION)
         timeout = current_settings.get("sys", {}).get("checknet_timeout", 60)
         stagecode, subcode = checknet.wait_network_connected(timeout)
-        log.debug("DeviceCheck.net stagecode: %s, subcode: %s" % (stagecode, subcode))
+        log.info("DeviceCheck.net stagecode: %s, subcode: %s" % (stagecode, subcode))
         return True if (stagecode == 3 and subcode == 1) else False
 
 
@@ -227,18 +226,24 @@ class Collector(Singleton):
             raise TypeError("self.__devicecheck is not registered.")
         if not self.__controller:
             raise TypeError("self.__controller is not registered.")
-
         self.device_power_on()
         net_status = self.__devicecheck.wait_net_state()
-        if net_status:
-            self.__controller.led_flicker_off(0)
-            self.__controller.buzzer_flicker_on(1000, 100, 1)
-        else:
-            self.__controller.led_on(1)
-            self.__controller.buzzer_flicker_on(600, 400, 2)
         return net_status
 
+    def device_connect_cloud(self, cloud, net_status):
+        if net_status:
+            cloud_status = cloud.init(enforce=True)
+            if cloud_status:
+                if (self.__bootReason == 1) or (self.__bootReason == 2):
+                    pm.set_psm_time(1, 24, 0, 1)
+                    self.__controller.led_flicker_off(0)
+                    self.__controller.buzzer_flicker_on(2000, 100, 1)
+                return True
+        self.__controller.led_on(1)
+        self.__controller.buzzer_flicker_on(600, 400, 2)
+        return False
+
     def device_power_on(self):
-        if (self.__bootReason != 4) and (self.__bootReason != 8):
-            res = self.__controller.led_flicker_on(500, 500, 60, 0)
+        if self.__bootReason == 1 or self.__bootReason == 2:
             self.__controller.buzzer_flicker_on(700, 300, 1)
+            self.__controller.led_flicker_on(500, 500, 60, 0)

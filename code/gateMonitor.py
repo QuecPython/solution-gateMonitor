@@ -15,6 +15,7 @@
 import sys_bus
 import _thread
 import utime
+import pm
 from misc import Power
 from misc import ADC
 from queue import Queue
@@ -112,24 +113,27 @@ class GateMonitor(Singleton):
         '''
         # 根据物模型定义的告警事件属性值进行组包
         csq = self.__controller.get_net_csq()
-        voltage = params.get("params")
+        voltage = params.get("vbatt")
         report_data = {8: {2: voltage, 3: csq, 10: True}}
         send_sta = self.__controller.remote_post_data(report_data)
         return send_sta
 
     def deviceWakeUp(self):
-        print("DEBUG: deviceWakeUp bootReason = {}".format(self.__bootReason))
+        log.info("DEBUG: deviceWakeUp bootReason is %s" % (self.__bootReason))
         if self.__bootReason == 8:
-            if self.__extint.get_key_gpio_level():
+            if not self.__extint.get_key_gpio_level():
                 self.__extint.eventQueue.put([7, 5])
             else:
                 self.__extint.eventQueue.put([6, 5])
+        if (self.__bootReason == 1) or (self.__bootReason == 2):
+            settings.set("doorState", self.__extint.get_magnet_gpio_level())
+            settings.save()
 
     def powerOnManage(self, cloud_sta):
         if cloud_sta:
             sys_bus.publish(1001, {"cmd": 1001})
             self.__controller.check_report_data()
-            self.__controller.remote_ota_check()
+            # self.__controller.remote_ota_check()
 
     def makeFunctions(self):
         '''
@@ -161,7 +165,7 @@ class InterruptEvent(object):
         utime.sleep_ms(25)
         if self.__magnet_flag:
             self.__magnet_flag = False
-            self.eventQueue.put([6, self.__magnet_gpio.read()])
+            self.eventQueue.put([6, 1])
         else:
             pass
 
@@ -176,6 +180,9 @@ class InterruptEvent(object):
     def get_key_gpio_level(self):
         return self.__key_gpio.read()
 
+    def get_magnet_gpio_level(self):
+        return self.__magnet_gpio.read()
+
     def runTask(self):
         _thread.start_new_thread(self.interruptManage, ())
 
@@ -187,7 +194,7 @@ class InterruptEvent(object):
                     sys_bus.publish(1003, {"cmd": 1003})
                     self.__keys_flag = True
                 else:
-                    level = msg[1]
+                    level = self.__magnet_gpio.read()
                     try:
                         doorSta = settings.get().get("device_cfg").get("doorState")
                     except:
@@ -287,16 +294,13 @@ if __name__ == '__main__':
     extint_obj.runTask()
     gate_monitor_obj.deviceWakeUp()
     net_status = collector.device_status_get()
-    if net_status:
-        # Business start
-        # Cloud start
-        cloud_status = cloud.init()
-        gate_monitor_obj.powerOnManage(cloud_status)
-    rtc_wakeup_period = current_settings["usr_cfg"].get("rtc_wakeup_period")
-    low_energy_obj.set_period(rtc_wakeup_period)
-    low_energy_obj.set_low_energy_method("PSM")
-    low_energy_obj.addObserver(collector)
-    # Low energy init
-    controller.low_energy_init()
-    # Low energy start
-    controller.low_energy_start()
+    cloud_connect_status = collector.device_connect_cloud(cloud, net_status)
+    gate_monitor_obj.powerOnManage(cloud_connect_status)
+    # rtc_wakeup_period = current_settings["usr_cfg"].get("rtc_wakeup_period")
+    # low_energy_obj.set_period(rtc_wakeup_period)
+    # low_energy_obj.set_low_energy_method("PSM")
+    # low_energy_obj.addObserver(collector)
+    # # Low energy init
+    # controller.low_energy_init()
+    # # Low energy start
+    # controller.low_energy_start()

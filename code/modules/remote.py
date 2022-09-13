@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import _thread
 from log import getLogger
 from usr.modules.common import Observable, CloudObserver
 
@@ -31,6 +30,9 @@ class RemotePublish(Observable):
     def __cloud_post(self, data):
         """Cloud publish object model data"""
         return self.__cloud.post_data(data) if self.__cloud else False
+
+    def conn_state(self):
+        return self.__cloud.get_status()
 
     def add_cloud(self, cloud):
         """Add Cloud object"""
@@ -61,7 +63,7 @@ class RemotePublish(Observable):
     def post_data(self, data):
         """Data format to post:"""
         res = True
-        if self.__cloud_conn():
+        if self.conn_state():
             if not self.__cloud_post(data):
                 if self.__cloud_conn(enforce=True):
                     if not self.__cloud_post(data):
@@ -72,7 +74,7 @@ class RemotePublish(Observable):
         else:
             log.error("Cloud Connect Failed.")
             res = False
-
+        log.info("post data result is %s" % res)
         if res is False:
             # This Observer Is History
             self.notifyObservers(self, *[data])

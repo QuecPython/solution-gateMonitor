@@ -83,10 +83,9 @@ class LowEnergyManage(Observable):
 
     def __rtc_start(self):
         """Start low energy sleep by RTC"""
-        self.__rtc_enable(0)
+        self.__timer.register_callback(self.__timer_callback)
         atime = utime.localtime(utime.mktime(utime.localtime()) + self.__period)
         alarm_time = [atime[0], atime[1], atime[2], atime[6], atime[3], atime[4], atime[5], 0]
-        self.__timer.register_callback(self.__timer_callback)
         if self.__timer.set_alarm(alarm_time) == 0:
             return self.__rtc_enable(1)
         return False

@@ -52,7 +52,7 @@ class Battery(object):
         adc_list.remove(max(adc_list))
         adc_value = int(sum(adc_list) / len(adc_list))
         self.__adc.close()
-        vbatt_value = adc_value * (self.__factor + 1)
+        vbatt_value = adc_value
         return vbatt_value
 
     def get_voltage(self):

@@ -2,6 +2,8 @@ import ujson
 import utime
 import osTimer
 import quecIot
+import modem
+from misc import Power
 try:
     import uhashlib
 except:
@@ -96,6 +98,8 @@ class QuecThing(CloudObservable):
         self.__mcu_name = mcu_name
         self.__mcu_version = mcu_version
         self.__mode = mode
+        self.__conn_flag = True
+        self.__model = modem.getDevFwVersion()
         self.__object_model = None
         self.__post_result_wait_queue = Queue(maxsize=16)
         self.__quec_timer = osTimer()
@@ -173,6 +177,9 @@ class QuecThing(CloudObservable):
                 self.__put_post_res(False)
             elif errcode == 10320:
                 self.__put_post_res(False)
+        if ((event == 3) and (errcode == 10200)) or ((event == 9) and (errcode == 10200)):
+            self.__conn_flag = False
+
 
     def set_object_model(self, object_model):
         """Register QuecObjectModel to this class"""
@@ -183,46 +190,35 @@ class QuecThing(CloudObservable):
 
     def init(self, enforce=False):
         """queccloud connect"""
-        log.debug(
-            "[init start] enforce: %s QuecThing Work State: %s, quecIot.getConnmode(): %s"
-            % (enforce, quecIot.getWorkState(), quecIot.getConnmode())
-        )
-        log.debug("[init start] PK: %s, PS: %s, DK: %s, DS: %s, SERVER: %s" % (self.__pk, self.__ps, self.__dk, self.__ds, self.__server))
         if enforce is False:
             if self.get_status():
                 return True
 
-        quecIot.init()
-        quecIot.setEventCB(self.__event_cb)
-        quecIot.setProductinfo(self.__pk, self.__ps)
-        if self.__dk or self.__ds:
-            quecIot.setDkDs(self.__dk, self.__ds)
-        quecIot.setServer(self.__mode, self.__server)
-        quecIot.setLifetime(self.__life_time)
-        quecIot.setMcuVersion(self.__mcu_name, self.__mcu_version)
-        quecIot.setConnmode(1)
-
-        count = 0
-        while quecIot.getWorkState() != 8 and count < 10:
-            utime.sleep_ms(200)
-            count += 1
-
-        if not self.__ds and self.__dk:
-            count = 0
-            while count < 3:
-                dkds = quecIot.getDkDs()
-                if dkds:
-                    self.__dk, self.__ds = dkds
-                    log.debug("dk: %s, ds: %s" % dkds)
-                    break
-                count += 1
-                utime.sleep(count)
-
-        log.debug("[init over] QuecThing Work State: %s, quecIot.getConnmode(): %s" % (quecIot.getWorkState(), quecIot.getConnmode()))
-        if self.get_status():
-            return True
+        if "BC25" in self.__model and (Power.powerOnReason() == 8 or Power.powerOnReason() == 4):
+            quecIot.init()
+            quecIot.setEventCB(self.__event_cb)
         else:
-            return False
+            quecIot.init()
+            quecIot.setEventCB(self.__event_cb)
+            quecIot.setProductinfo(self.__pk, self.__ps)
+            if self.__dk or self.__ds:
+                quecIot.setDkDs(self.__dk, self.__ds)
+            quecIot.setServer(self.__mode, self.__server)
+            quecIot.setLifetime(self.__life_time)
+            quecIot.setMcuVersion(self.__mcu_name, self.__mcu_version)
+            quecIot.setConnmode(1)
+        count = 0
+        while True:
+            if not self.__conn_flag:
+                cloud_sta = True
+                break
+            if count > 30:
+                cloud_sta = False
+                break
+            count += 1
+            utime.sleep_ms(1000)
+        print("cloud_sta = {}".format(cloud_sta))
+        return cloud_sta
 
     def close(self):
         """queccloud disconnect"""
@@ -230,17 +226,16 @@ class QuecThing(CloudObservable):
 
     def get_status(self):
         """Get quectel cloud connect status"""
-        return True if quecIot.getWorkState() == 8 and quecIot.getConnmode() == 1 else False
+        return True if not self.__conn_flag else False
 
     def post_data(self, data):
         """Publish object model property, event"""
-        res = True
+        res = False
         phymodelReport_res = quecIot.phymodelReport(2, data)
-        res = self.__get_post_res()
-        if res:
-            v = {}
-        else:
-            res = False
+        print("phymodelReport_res = %s" % phymodelReport_res)
+        if phymodelReport_res:
+            res = self.__get_post_res()
+            print("phymodelReport_res  res = %s" % res)
         return res
 
     def device_report(self):
